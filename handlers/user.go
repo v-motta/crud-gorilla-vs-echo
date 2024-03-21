@@ -2,27 +2,24 @@ package handlers
 
 import (
 	"database/sql"
-	"encoding/json"
 	"net/http"
 	"restaurant-api/db"
 	"restaurant-api/models"
 	"strconv"
 
-	"github.com/gorilla/mux"
+	"github.com/labstack/echo/v4"
 )
 
-func GetAllUsers(w http.ResponseWriter, r *http.Request) {
+func GetAllUsers(c echo.Context) error {
 	db, err := db.Connect()
 	if err != nil {
-		http.Error(w, "Failed to connect to database", http.StatusInternalServerError)
-		return
+		return c.String(http.StatusInternalServerError, "Failed to connect to database")
 	}
 	defer db.Close()
 
 	rows, err := db.Query("SELECT id, name, username, email FROM users")
 	if err != nil {
-		http.Error(w, "Failed to fetch users from database", http.StatusInternalServerError)
-		return
+		return c.String(http.StatusInternalServerError, "Failed to fetch users from database")
 	}
 	defer rows.Close()
 
@@ -31,40 +28,29 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var user models.User
 		if err := rows.Scan(&user.ID, &user.Name, &user.Username, &user.Email); err != nil {
-			http.Error(w, "Failed to scan user row", http.StatusInternalServerError)
-			return
+			return c.String(http.StatusInternalServerError, "Failed to scan user row")
+
 		}
 		users = append(users, user)
 	}
 
 	if err := rows.Err(); err != nil {
-		http.Error(w, "Error iterating over user rows", http.StatusInternalServerError)
-		return
+		return c.String(http.StatusInternalServerError, "Error iterating over user rows")
 	}
 
-	jsonUsers, err := json.Marshal(users)
-	if err != nil {
-		http.Error(w, "Failed to marshal users to JSON", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(jsonUsers)
+	return c.JSON(http.StatusOK, users)
 }
 
-func GetUserByID(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	userID, err := strconv.Atoi(vars["id"])
+func GetUserByID(c echo.Context) error {
+	userID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
-		return
+		return c.String(http.StatusBadRequest, "Invalid user ID")
 	}
 
 	db, err := db.Connect()
 	if err != nil {
-		http.Error(w, "Failed to connect to database", http.StatusInternalServerError)
-		return
+		return c.String(http.StatusInternalServerError, "Failed to connect to database")
+
 	}
 	defer db.Close()
 
@@ -75,106 +61,77 @@ func GetUserByID(w http.ResponseWriter, r *http.Request) {
 	err = row.Scan(&user.ID, &user.Name, &user.Username, &user.Email)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			http.Error(w, "User not found", http.StatusNotFound)
-			return
+			return c.String(http.StatusNotFound, "User not found")
+
 		}
-		http.Error(w, "Failed to fetch user from database", http.StatusInternalServerError)
-		return
+		return c.String(http.StatusInternalServerError, "Failed to fetch user from database")
 	}
 
-	jsonUser, err := json.Marshal(user)
-	if err != nil {
-		http.Error(w, "Failed to marshal user to JSON", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(jsonUser)
+	return c.JSON(http.StatusOK, user)
 }
 
-func CreateUser(w http.ResponseWriter, r *http.Request) {
+func CreateUser(c echo.Context) error {
 	var user models.User
-	err := json.NewDecoder(r.Body).Decode(&user)
-	if err != nil {
-		http.Error(w, "Failed to decode request body", http.StatusBadRequest)
-		return
+	if err := c.Bind(&user); err != nil {
+		return c.String(http.StatusBadRequest, "Failed to decode request body")
 	}
 
 	db, err := db.Connect()
 	if err != nil {
-		http.Error(w, "Failed to connect to database", http.StatusInternalServerError)
-		return
+		return c.String(http.StatusInternalServerError, "Failed to connect to database")
 	}
 	defer db.Close()
 
 	_, err = db.Exec("INSERT INTO users (name, username, email, password) VALUES ($1, $2, $3, $4)", user.Name, user.Username, user.Email, user.Password)
 	if err != nil {
-		http.Error(w, "Failed to insert user into database", http.StatusInternalServerError)
-		return
+		return c.String(http.StatusInternalServerError, "Failed to insert user into database")
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(user)
+	return c.JSON(http.StatusCreated, user)
 }
 
-func UpdateUser(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	userID, err := strconv.Atoi(vars["id"])
+func UpdateUser(c echo.Context) error {
+	userID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
-		return
+		return c.String(http.StatusBadRequest, "Invalid user ID")
 	}
 
 	var updatedUser models.User
-	err = json.NewDecoder(r.Body).Decode(&updatedUser)
-	if err != nil {
-		http.Error(w, "Failed to decode request body", http.StatusBadRequest)
-		return
+	if err := c.Bind(&updatedUser); err != nil {
+		return c.String(http.StatusBadRequest, "Failed to decode request body")
 	}
 
 	db, err := db.Connect()
 	if err != nil {
-		http.Error(w, "Failed to connect to database", http.StatusInternalServerError)
-		return
+		return c.String(http.StatusInternalServerError, "Failed to connect to database")
 	}
 	defer db.Close()
 
 	_, err = db.Exec("UPDATE users SET name = $1, username = $2, email = $3 WHERE id = $4",
 		updatedUser.Name, updatedUser.Username, updatedUser.Email, userID)
 	if err != nil {
-		http.Error(w, "Failed to update user in database", http.StatusInternalServerError)
-		return
+		return c.String(http.StatusInternalServerError, "Failed to update user in database")
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(updatedUser)
+	return c.JSON(http.StatusOK, updatedUser)
 }
 
-func DeleteUser(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	userID, err := strconv.Atoi(vars["id"])
+func DeleteUser(c echo.Context) error {
+	userID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
-		return
+		return c.String(http.StatusBadRequest, "Invalid user ID")
 	}
 
 	db, err := db.Connect()
 	if err != nil {
-		http.Error(w, "Failed to connect to database", http.StatusInternalServerError)
-		return
+		return c.String(http.StatusInternalServerError, "Failed to connect to database")
 	}
 	defer db.Close()
 
 	_, err = db.Exec("DELETE FROM users WHERE id = $1", userID)
 	if err != nil {
-		http.Error(w, "Failed to delete user from database", http.StatusInternalServerError)
-		return
+		return c.String(http.StatusInternalServerError, "Failed to delete user from database")
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("User deleted successfully"))
+	return c.String(http.StatusOK, "User deleted successfully")
 }

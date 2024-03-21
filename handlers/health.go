@@ -3,21 +3,20 @@ package handlers
 import (
 	"net/http"
 	"restaurant-api/db"
+
+	"github.com/labstack/echo/v4"
 )
 
-func HealthHandler(w http.ResponseWriter, r *http.Request) {
+func HealthHandler(c echo.Context) error {
 	db, err := db.Connect()
 	if err != nil {
-		http.Error(w, "Failed to connect to database", http.StatusInternalServerError)
-		return
+		return c.String(http.StatusInternalServerError, "Failed to connect to database")
 	}
 	defer db.Close()
 
 	if err := db.Ping(); err != nil {
-		http.Error(w, "Failed to ping database", http.StatusInternalServerError)
-		return
+		return c.String(http.StatusInternalServerError, "Failed to ping database")
 	}
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Database is connected successfully!"))
+	return c.String(http.StatusOK, "Database is connected successfully!")
 }

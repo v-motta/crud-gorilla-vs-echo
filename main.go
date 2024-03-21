@@ -1,34 +1,21 @@
 package main
 
 import (
-	"net/http"
-
 	"restaurant-api/handlers"
 
-	"github.com/gorilla/mux"
+	"github.com/labstack/echo/v4"
 )
 
-type Response struct {
-	Users []User `json:"users"`
-}
-
-type User struct {
-	Id       int    `json:"id"`
-	Name     string `json:"name"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
-}
-
 func main() {
-	router := mux.NewRouter()
+	e := echo.New()
 
-	router.HandleFunc("/health", handlers.HealthHandler).Methods("GET")
+	e.GET("/health", handlers.HealthHandler)
 
-	router.HandleFunc("/users", handlers.GetAllUsers).Methods("GET")
-	router.HandleFunc("/users/{id}", handlers.GetUserByID).Methods("GET")
-	router.HandleFunc("/users", handlers.CreateUser).Methods("POST")
-	router.HandleFunc("/users/{id}", handlers.UpdateUser).Methods("PUT")
-	router.HandleFunc("/users/{id}", handlers.DeleteUser).Methods("DELETE")
+	e.GET("/users", handlers.GetAllUsers)
+	e.GET("/users/:id", handlers.GetUserByID)
+	e.POST("/users", handlers.CreateUser)
+	e.PUT("/users/:id", handlers.UpdateUser)
+	e.DELETE("/users/:id", handlers.DeleteUser)
 
-	http.ListenAndServe(":9000", router)
+	e.Logger.Fatal(e.Start(":9000"))
 }
